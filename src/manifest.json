@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Random Seed of History on Biome Finder",
+  "version": "1.1",
+  "description": "Add history to the random seed created within Biome Finder.",
+  "icons": {},
+  "author": "Kitsune Gadget / Yu",
+  "content_scripts": [
+    {
+      "matches": ["https://www.chunkbase.com/apps/biome-finder"],
+      "js": ["add-history.js"],
+      "css": ["add-history.css"]
+    }
+  ]
+}
