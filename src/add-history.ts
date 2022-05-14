@@ -8,6 +8,7 @@ class AddHistory {
   private readonly WRAPPER_ID = "add-history";
   private readonly FIXED_DIV_ID = "add-history-fixed";
   private readonly HISTORY_VIEW_CLASS = "add-history-view";
+  private readonly FAVORITE_BUTTON_ID = "add-history-favorite";
   private readonly DISPLAY_MOUSEDOWN_TIME = 350;
 
   private _currentState = -1;
@@ -21,6 +22,10 @@ class AddHistory {
   private _backViewOl: HTMLOListElement;
   private _nextViewOl: HTMLOListElement;
   private _fixedDiv: HTMLDivElement;
+
+  private _favoriteButton: HTMLButtonElement;
+  private _favoriteView: HTMLDivElement;
+  private _favoriteViewOl: HTMLOListElement;
 
   private _currentElem: HTMLLIElement;
 
@@ -96,6 +101,13 @@ class AddHistory {
     this._addSeedRandomClickListener();
 
     this._checkButtonState();
+
+    // Init favoreite button
+    this._favoriteButton = this._addFavoriteButton();
+    [this._favoriteView, this._favoriteViewOl] = this._createHistoryView();
+    this._wrapper.appendChild(this._favoriteView);
+
+    this._initFavoriteItem(this._favoriteViewOl);
   }
 
   /**
@@ -158,6 +170,7 @@ class AddHistory {
       this._backView.style.display = "none";
       this._nextView.style.display = "none";
       fixedDiv.style.display = "none";
+      this._favoriteView.style.display = "none";
     };
 
     fixedDiv.addEventListener("mousedown", releaseListener);
@@ -204,6 +217,7 @@ class AddHistory {
         this._currentState = state;
 
         this._checkButtonState();
+        this._checkFavoritedSeed();
 
         this._backView.style.display = "none";
         this._nextView.style.display = "none";
@@ -300,6 +314,7 @@ class AddHistory {
       // console.log(currentState, states);
 
       this._checkButtonState();
+      this._checkFavoritedSeed();
       this._moveViewList(AddHistory.HistoryMove.Back);
     };
 
@@ -316,7 +331,7 @@ class AddHistory {
         this._backView.style.left = `${
           (e.target! as HTMLElement).offsetLeft
         }px`;
-        
+
         this._backView.style.display = "block";
         this._backView.scrollTop = 0;
         this._fixedDiv.style.display = "block";
@@ -334,6 +349,7 @@ class AddHistory {
       // console.log(currentState, states);
 
       this._checkButtonState();
+      this._checkFavoritedSeed();
       this._moveViewList(AddHistory.HistoryMove.Next);
     };
 
@@ -350,7 +366,7 @@ class AddHistory {
         this._nextView.style.left = `${
           (e.target! as HTMLElement).offsetLeft
         }px`;
-        
+
         this._nextView.style.display = "block";
         this._nextView.scrollTop = 0;
         this._fixedDiv.style.display = "block";
@@ -385,7 +401,149 @@ class AddHistory {
       this._currentElem = this._createList(this._currentState);
 
       this._checkButtonState();
+      this._checkFavoritedSeed();
     });
+  }
+
+  /////////////////////////////
+  // Favorite button methods //
+  /////////////////////////////
+  /**
+   * Add favorite button.
+   */
+  private _addFavoriteButton() {
+    const favButton = document.createElement("button");
+    favButton.className = "gh-button icon star";
+
+    let timeoutId: number;
+    const favClickEvent = () => {
+      clearTimeout(timeoutId);
+
+      if (favButton.getAttribute("checked") === null) {
+        this._addFavoriteItem(this._favoriteViewOl);
+        favButton.setAttribute("checked", "");
+      } else {
+        this._removeFavoriteItem(this._favoriteViewOl);
+        favButton.removeAttribute("checked");
+      }
+    };
+
+    favButton.addEventListener("mousedown", (e: MouseEvent) => {
+      favButton.addEventListener("click", favClickEvent);
+
+      timeoutId = setTimeout(() => {
+        favButton.removeEventListener("click", favClickEvent);
+
+        this._favoriteView.style.top = `${
+          (e.target! as HTMLElement).offsetTop + 25
+        }px`;
+        this._favoriteView.style.left = `${
+          (e.target! as HTMLElement).offsetLeft
+        }px`;
+
+        this._favoriteView.style.display = "block";
+        this._favoriteView.scrollTop = 0;
+        this._fixedDiv.style.display = "block";
+      }, this.DISPLAY_MOUSEDOWN_TIME);
+    });
+
+    this._wrapper.appendChild(favButton);
+
+    return favButton;
+  }
+
+  private _checkFavoritedSeed() {
+    if (location.hash) {
+      const seed = location.hash.replace(/^#/, "");
+
+      for (let child of this._favoriteViewOl.children) {
+        if (child.textContent === seed) {
+          this._favoriteButton.setAttribute("checked", "");
+          return;
+        }
+      }
+
+      this._favoriteButton.removeAttribute("checked");
+    }
+  }
+
+  private _addFavoriteItem(ol: HTMLOListElement) {
+    if (location.hash) {
+      const seed = location.hash.replace(/^#/, "");
+      chrome.storage.sync.set({ [seed]: seed });
+
+      const li = this._createFavList(seed);
+      ol.insertAdjacentElement("afterbegin", li);
+    }
+  }
+
+  private _removeFavoriteItem(ol: HTMLOListElement) {
+    if (location.hash) {
+      const seed = location.hash.replace(/^#/, "");
+      chrome.storage.sync.remove(seed);
+
+      for (let child of ol.children) {
+        if (child.textContent === seed) {
+          child.remove();
+          break;
+        }
+      }
+    }
+  }
+
+  private _createFavList(seed: string): HTMLLIElement {
+    const li = document.createElement("li");
+
+    if (seed) {
+      li.textContent = seed;
+      li.addEventListener("click", () => {
+        console.log(location.hash, `#${li.textContent}`);
+        if (location.hash !== `#${li.textContent}`) {
+          if (this._currentState < this._states) {
+            for (let i = this._currentState + 1; i <= this._states; i++) {
+              sessionStorage.removeItem(i.toString());
+              this._nextViewOl.removeChild(this._nextViewOl.firstChild!);
+            }
+            this._states = this._currentState;
+          }
+
+          this._states++;
+          this._currentState++;
+          // console.log(this._currentState, this._states);
+
+          location.replace(location.pathname + "#" + seed);
+          sessionStorage.setItem(this._states.toString(), location.href);
+
+          if (this._currentElem.textContent) {
+            this._backViewOl.insertAdjacentElement(
+              "afterbegin",
+              this._currentElem
+            );
+          }
+          this._currentElem = this._createList(this._currentState);
+
+          this._checkButtonState();
+          this._favoriteButton.setAttribute("checked", "");
+
+          this._favoriteView.style.display = "none";
+          this._fixedDiv.style.display = "none";
+        }
+      });
+    }
+
+    return li;
+  }
+
+  private async _initFavoriteItem(ol: HTMLOListElement) {
+    // chrome.storage.sync.clear();
+    const keys = await chrome.storage.sync.get(null);
+
+    for (let key in keys) {
+      const li = this._createFavList(key);
+      ol.insertAdjacentElement("afterbegin", li);
+    }
+
+    this._checkFavoritedSeed();
   }
 }
 

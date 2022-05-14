@@ -55,3 +55,21 @@ $color-hover-blue: #1e90ff;
   bottom: 0;
   opacity: 0.5;
 }
+
+.gh-button.star {
+  width: 25px;
+
+  &.icon {
+    &:before {
+      background-position: -12px -348px;
+      left: -2px;
+      transition: transform ease-out 500ms;
+    }
+
+    &[checked]:before {
+      background-position: 0 -348px;
+      left: -2px;
+      transform: rotateZ(145deg);
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "biome-finder-history",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Add history to the random seed created within Biome Finder.",
   "main": "add-history.ts",
   "scripts": {
@@ -16,6 +16,7 @@
   "author": "Kitsune Gadget / Yu",
   "license": "ISC",
   "devDependencies": {
+    "@types/chrome": "^0.0.185",
     "copyfiles": "^2.4.1",
     "rimraf": "^3.0.2",
     "sass": "^1.51.0",
