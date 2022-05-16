@@ -14,9 +14,12 @@ namespace AddHistory {
 
   /////////////////////////////
   // namespace variable scope
+  const inputElement = document.getElementById("seed") as HTMLInputElement;
+
   let _currentState_ = -1;
   let _totalStates_ = -1;
   let _currentSeedItem_: CurrentSeedItem;
+
 
   /**
    * Create a main container.
@@ -224,7 +227,7 @@ namespace AddHistory {
         _currentState_--;
 
         const backSeed = this._seedItemList[0].seed;
-        location.replace(seedToLocationHash(backSeed!));
+        changeSeed(backSeed!);
 
         this.checkButtonState();
         C.nextView.checkButtonState();
@@ -288,7 +291,7 @@ namespace AddHistory {
         _currentState_++;
 
         const nextSeed = this._seedItemList[0].seed;
-        location.replace(seedToLocationHash(nextSeed!));
+        changeSeed(nextSeed!);
 
         this.checkButtonState();
         C.backView.checkButtonState();
@@ -349,8 +352,8 @@ namespace AddHistory {
      * Check to see if the displayed seed is a favorite.
      */
     checkBookmarkedSeed() {
-      if (location.hash) {
-        const currentSeed = locationhashToSeed(location.hash);
+      if (inputElement.value) {
+        const currentSeed = inputElement.value;
 
         const filterItem = this._seedItemList.filter(
           (item) => item.seed === currentSeed
@@ -405,10 +408,10 @@ namespace AddHistory {
     addButtonListener(containerViews: ContainerViews): void {
       let timeoutId: number;
 
-      const favoriteClick = () => {
+      const bookmarkClick = () => {
         clearTimeout(timeoutId);
 
-        const seed = locationhashToSeed(location.hash);
+        const seed = inputElement.value;
 
         if (this.checked) {
           this.removeBookmarkItem(seed);
@@ -418,10 +421,10 @@ namespace AddHistory {
       };
 
       this._button.addEventListener("mousedown", (e: MouseEvent) => {
-        this._button.addEventListener("click", favoriteClick);
+        this._button.addEventListener("click", bookmarkClick);
 
         timeoutId = window.setTimeout(() => {
-          this._button.removeEventListener("click", favoriteClick);
+          this._button.removeEventListener("click", bookmarkClick);
 
           this.viewTop = `${(e.target! as HTMLElement).offsetTop + 25}px`;
           this.viewLeft = `${(e.target! as HTMLElement).offsetLeft}px`;
@@ -438,6 +441,7 @@ namespace AddHistory {
      * @param containerViews
      */
     async getBookmarkFromStorage(containerViews: ContainerViews) {
+      // chrome.storage.sync.clear();
       const keys = await chrome.storage.sync.get(null);
 
       for (let key in keys) {
@@ -459,8 +463,6 @@ namespace AddHistory {
     protected _seed: string | undefined;
     protected _state: number;
 
-    protected _abortController: AbortController;
-
     constructor(
       setSeed?: string,
       containerViews?: ContainerViews,
@@ -473,8 +475,6 @@ namespace AddHistory {
       } else {
         this._state = -1;
       }
-
-      this._abortController = new AbortController();
 
       if (setSeed && containerViews) {
         this._seed = setSeed;
@@ -507,26 +507,22 @@ namespace AddHistory {
      * @param C Containers.
      */
     protected addClickListener(C: ContainerViews) {
-      this._item.addEventListener(
-        "click",
-        () => {
-          location.replace(seedToLocationHash(this.seed!));
+      this._item.addEventListener("click", () => {
+        changeSeed(this.seed!);
 
-          this.moveSeedItemsByState(C.backView, C.nextView);
-          _currentState_ = this.state;
+        this.moveSeedItemsByState(C.backView, C.nextView);
+        _currentState_ = this.state;
 
-          C.backView.checkButtonState();
-          C.nextView.checkButtonState();
-          C.bookmarkView.checkBookmarkedSeed();
+        C.backView.checkButtonState();
+        C.nextView.checkButtonState();
+        C.bookmarkView.checkBookmarkedSeed();
 
-          C.backView.viewDisplay = "none";
-          C.nextView.viewDisplay = "none";
-          C.fixedWrapper.display = "none";
+        C.backView.viewDisplay = "none";
+        C.nextView.viewDisplay = "none";
+        C.fixedWrapper.display = "none";
 
-          setLastState(_currentState_);
-        },
-        { signal: this._abortController.signal }
-      );
+        setLastState(_currentState_);
+      });
     }
 
     /**
@@ -590,10 +586,8 @@ namespace AddHistory {
   class BookmarkSeedItem extends SeedItem {
     constructor(seed: string, containerViews: ContainerViews) {
       super(seed, containerViews);
-
-      // デフォルトのリスナーを削除して、Favoriteのリスナーを追加
-      this._abortController.abort();
-      this.addClickListener(containerViews);
+      // superコンストラクタで呼び出されたメソッドがオーバーライドされていると
+      // こちら側が呼びだされるらしい...
     }
 
     /**
@@ -602,7 +596,7 @@ namespace AddHistory {
      */
     protected addClickListener(C: ContainerViews) {
       this._item.addEventListener("click", () => {
-        if (location.hash !== `#${this.seed}`) {
+        if (inputElement.value !== this.seed) {
           // 先の履歴の削除
           if (_currentState_ < _totalStates_) {
             for (let i = _currentState_ + 1; i <= _totalStates_; i++) {
@@ -615,7 +609,7 @@ namespace AddHistory {
           _totalStates_++;
           if (_currentSeedItem_.seed) _currentState_++;
 
-          location.replace(seedToLocationHash(this.seed!));
+          changeSeed(this.seed!);
 
           if (_currentSeedItem_.seed) {
             C.backView.insertItem(_currentSeedItem_);
@@ -782,21 +776,28 @@ namespace AddHistory {
   // functions //
   ///////////////
   /**
-   * Convert a seed string to a hash string.
-   * @param seed A string seed value.
-   * @returns A string hash value.
+   * Create a hash code from string.
+   * @param s A string.
+   * @returns A hash code.
    */
-  function seedToLocationHash(seed: string) {
-    return "#" + seed;
+  function createHashCode(s: string) {
+    let hashCode = 0;
+
+    for (let i = 0; i < s.length; i++) {
+      hashCode += hashCode * 31 + s[i].charCodeAt(0);
+    }
+
+    return hashCode;
   }
 
   /**
-   * Convert a hash string to a seed string.
-   * @param hash A string hash value.
-   * @returns A string seed value.
+   * Change seed input and auto hash change.
+   * @param seed
    */
-  function locationhashToSeed(hash: string) {
-    return hash.replace(/^#/, "");
+  function changeSeed(seed: string) {
+    inputElement.value = seed;
+    inputElement.focus();
+    inputElement.blur();
   }
 
   /**
@@ -813,7 +814,7 @@ namespace AddHistory {
    */
   async function getStorage(C: ContainerViews) {
     const storageSeeds = await chrome.storage.local.get(null);
-    const currentSeed = locationhashToSeed(location.hash);
+    const currentSeed = inputElement.value;
 
     let lastState = storageSeeds.lastState as number;
     let duplicate = [];
@@ -891,7 +892,7 @@ namespace AddHistory {
       _totalStates_++;
       if (_currentSeedItem_.seed) _currentState_++;
 
-      const seed = locationhashToSeed(location.hash);
+      const seed = inputElement.value;
 
       if (_currentSeedItem_.state >= 0) {
         C.backView.insertItem(_currentSeedItem_);
@@ -900,7 +901,6 @@ namespace AddHistory {
       _currentSeedItem_ = new CurrentSeedItem(seed, C, _currentState_);
 
       chrome.storage.local.set({ [_totalStates_]: seed });
-      // console.log(_currentState_, _totalStates_, _currentSeedItem_);
 
       C.backView.checkButtonState();
       C.nextView.checkButtonState();
@@ -970,6 +970,11 @@ namespace AddHistory {
     backContainer.checkButtonState();
     nextContainer.checkButtonState();
     bookmarkContainer.checkBookmarkedSeed();
+
+    // Add change listener to input element.
+    inputElement.addEventListener("change", () => {
+      bookmarkContainer.checkBookmarkedSeed();
+    });
   }
 }
 
