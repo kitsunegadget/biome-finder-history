@@ -1,551 +1,978 @@
-declare type HistoryMove = {
-  Back: 0;
-  Next: 1;
-};
-declare type HistoryMoveDir = HistoryMove[keyof HistoryMove];
-
-class AddHistory {
-  private readonly WRAPPER_ID = "add-history";
-  private readonly FIXED_DIV_ID = "add-history-fixed";
-  private readonly HISTORY_VIEW_CLASS = "add-history-view";
-  private readonly FAVORITE_BUTTON_ID = "add-history-favorite";
-  private readonly DISPLAY_MOUSEDOWN_TIME = 350;
-
-  private _currentState = -1;
-  private _states = -1;
-
-  private _wrapper: HTMLDivElement;
-  private _backButton: HTMLButtonElement;
-  private _nextButton: HTMLButtonElement;
-  private _backView: HTMLDivElement;
-  private _nextView: HTMLDivElement;
-  private _backViewOl: HTMLOListElement;
-  private _nextViewOl: HTMLOListElement;
-  private _fixedDiv: HTMLDivElement;
-
-  private _favoriteButton: HTMLButtonElement;
-  private _favoriteView: HTMLDivElement;
-  private _favoriteViewOl: HTMLOListElement;
-
-  private _currentElem: HTMLLIElement;
-
-  static HistoryMove: HistoryMove = {
+namespace AddHistory {
+  const HistoryMove = {
     Back: 0,
     Next: 1,
   } as const;
+  declare type HistoryMoveDir = typeof HistoryMove[keyof typeof HistoryMove];
 
-  constructor() {
-    for (let i = 0; ; i++) {
-      const href = sessionStorage.getItem(i.toString());
+  declare type ContainerViews = {
+    backView: BackContainer;
+    nextView: NextContainer;
+    bookmarkView: BookmarkContainer;
+    fixedWrapper: FixedWrapper;
+  };
 
-      // セッションが残っているなら最後に見た位置を復元する
-      if (location.href === href) {
-        // console.log("init", href);
-        this._currentState = i;
+  /////////////////////////////
+  // namespace variable scope
+  let _currentState_ = -1;
+  let _totalStates_ = -1;
+  let _currentSeedItem_: CurrentSeedItem;
+
+  /**
+   * Create a main container.
+   * @param id A main element id.
+   * @param label A first column text label.
+   */
+  class MainContainer {
+    private _mainDiv: HTMLDivElement;
+    private _span: HTMLSpanElement;
+
+    constructor(id: string, label: string) {
+      this._mainDiv = document.createElement("div");
+      this._mainDiv.id = id;
+
+      this._span = document.createElement("span");
+      this._span.textContent = `${label}:`;
+    }
+
+    get element() {
+      return this._mainDiv;
+    }
+
+    get label() {
+      return this._span.textContent?.slice(0, -1);
+    }
+
+    set label(label: string | undefined) {
+      this._span.textContent = `${label}:`;
+    }
+
+    /**
+     * Append a element to main container.
+     * @param element A element to be appended.
+     */
+    append(element: HTMLElement) {
+      this._mainDiv.appendChild(element);
+    }
+  }
+
+  /**
+   * Base of button and view container.
+   * @param viewClassName A class name for view.
+   * @param buttonClassName A class name for button.
+   */
+  abstract class ButtonViewContainer {
+    protected readonly DISPLAY_MOUSEDOWN_TIME = 350;
+
+    protected _button: HTMLButtonElement;
+    protected _view: HTMLDivElement;
+    protected _oList: HTMLOListElement;
+    protected _seedItemList: SeedItem[];
+
+    constructor(viewClassName: string, buttonClassName?: string) {
+      this._button = document.createElement("button");
+      this._button.className = `gh-button ${
+        buttonClassName ? buttonClassName : ""
+      }`;
+
+      this._view = document.createElement("div");
+      this._view.className = viewClassName;
+
+      this._oList = document.createElement("ol");
+      this._view.appendChild(this._oList);
+
+      this._seedItemList = [];
+    }
+
+    get buttonElement() {
+      return this._button;
+    }
+
+    get buttonText() {
+      return this._button.textContent;
+    }
+
+    get viewElement() {
+      return this._view;
+    }
+
+    set buttonText(text: string | null) {
+      this._button.textContent = text;
+    }
+
+    set viewDisplay(param: string) {
+      this._view.style.display = param;
+    }
+
+    set viewTop(param: string) {
+      this._view.style.top = param;
+    }
+
+    set viewLeft(param: string) {
+      this._view.style.left = param;
+    }
+
+    /**
+     * Insert a SeedItem at the start of the view array.
+     * @param seedItem A SeedItem.
+     */
+    insertItem(seedItem: SeedItem) {
+      this._oList.insertAdjacentElement("afterbegin", seedItem.element);
+      this._seedItemList.unshift(seedItem);
+    }
+
+    /**
+     * Append a SeedItem to the end of the view array.
+     * @param seedItem A SeedItem.
+     */
+    appendItem(seedItem: SeedItem) {
+      this._oList.appendChild(seedItem.element);
+      this._seedItemList.push(seedItem);
+    }
+
+    /**
+     * Remove a SeedItem from the view array.
+     * @param seedItem A SeedItem.
+     * @returns A removed SeedItem. If there are no item to remove, return undefined.
+     */
+    removeItem(seedItem: SeedItem): SeedItem | undefined {
+      const index = this._seedItemList.indexOf(seedItem);
+
+      if (index >= 0) {
+        this._oList.removeChild(seedItem.element);
+        return this._seedItemList.splice(index, 1)[0];
       }
 
-      if (!href) {
-        if (i === 0) {
-          if (location.hash) {
-            sessionStorage.setItem("0", location.href);
+      return undefined;
+    }
+
+    /**
+     * Remove a SeedItem from the start of the view array.
+     * @returns A removed SeedItem. If there are no item to remove, return undefined.
+     */
+    removeFirstItem(): SeedItem | undefined {
+      if (this._oList.children.length > 0) {
+        this._oList.removeChild(this._oList.firstChild!);
+        return this._seedItemList.shift();
+      }
+
+      return undefined;
+    }
+
+    /**
+     * Remove all SeedItems.
+     */
+    removeAllItem() {
+      for (let item of this._seedItemList) {
+        this._oList.firstChild?.remove();
+      }
+      this._seedItemList = [];
+    }
+
+    /**
+     * Move a SeedItem next to each other between back view, current space, and next view.
+     * @param direction Move direction.
+     * @param C Containers including a back and next container.
+     */
+    moveSeedItem(direction: HistoryMoveDir, C: ContainerViews) {
+      if (_currentSeedItem_.seed) {
+        if (direction === HistoryMove.Back) {
+          C.nextView.insertItem(_currentSeedItem_);
+          //
+        } else if (direction === HistoryMove.Next) {
+          C.backView.insertItem(_currentSeedItem_);
+        }
+      }
+
+      _currentSeedItem_ =
+        this.removeItem(this._seedItemList[0]) || new CurrentSeedItem();
+    }
+  }
+
+  /**
+   * Create a back button and view container.
+   * @param viewClassName A class name for view.
+   * @param buttonClassName A class name for button.
+   */
+  class BackContainer extends ButtonViewContainer {
+    constructor(viewClassName: string, buttonClassName?: string) {
+      super(viewClassName, buttonClassName);
+      this.buttonText = "Back";
+    }
+
+    /**
+     * Check the button state in this container.
+     */
+    checkButtonState() {
+      if (_currentState_ <= 0) {
+        this._button.disabled = true;
+      } else {
+        this._button.disabled = false;
+      }
+    }
+
+    /**
+     * Add the button in this container to mouse event listener.
+     * @param C Containers.
+     */
+    addButtonListener(C: ContainerViews): void {
+      let timeoutId: number;
+
+      const backButtonClick = () => {
+        clearTimeout(timeoutId);
+
+        _currentState_--;
+
+        const backSeed = this._seedItemList[0].seed;
+        location.replace(seedToLocationHash(backSeed!));
+
+        this.checkButtonState();
+        C.nextView.checkButtonState();
+        C.bookmarkView.checkBookmarkedSeed();
+
+        this.moveSeedItem(HistoryMove.Back, C);
+
+        setLastState(_currentState_);
+        // console.log(_currentState_, _currentSeedItem_);
+      };
+
+      this._button.addEventListener("mousedown", (e: MouseEvent) => {
+        this._button.addEventListener("click", backButtonClick);
+
+        timeoutId = window.setTimeout(() => {
+          this._button.removeEventListener("click", backButtonClick);
+
+          this.viewTop = `${(e.target! as HTMLElement).offsetTop + 25}px`;
+          this.viewLeft = `${(e.target! as HTMLElement).offsetLeft}px`;
+
+          this.viewDisplay = "block";
+          this._view.scrollTop = 0;
+          C.fixedWrapper.display = "block";
+        }, this.DISPLAY_MOUSEDOWN_TIME);
+      });
+    }
+  }
+
+  /**
+   * Create a next button and view container.
+   * @param viewClassName A class name for view.
+   * @param buttonClassName A class name for button.
+   */
+  class NextContainer extends ButtonViewContainer {
+    constructor(viewClassName: string, buttonClassName?: string) {
+      super(viewClassName, buttonClassName);
+      this.buttonText = "Next";
+    }
+
+    /**
+     * Check the button state in this container.
+     */
+    checkButtonState() {
+      if (_currentState_ >= _totalStates_ || _totalStates_ <= 0) {
+        this._button.disabled = true;
+      } else {
+        this._button.disabled = false;
+      }
+    }
+
+    /**
+     * Add the button in this container to mouse event listener.
+     * @param C Containers.
+     */
+    addButtonListener(C: ContainerViews) {
+      let timeoutId: number;
+
+      const nextButtonClick = () => {
+        clearTimeout(timeoutId);
+
+        _currentState_++;
+
+        const nextSeed = this._seedItemList[0].seed;
+        location.replace(seedToLocationHash(nextSeed!));
+
+        this.checkButtonState();
+        C.backView.checkButtonState();
+        C.bookmarkView.checkBookmarkedSeed();
+
+        this.moveSeedItem(HistoryMove.Next, C);
+
+        setLastState(_currentState_);
+        // console.log(_currentState_, _currentSeedItem_);
+      };
+
+      this._button.addEventListener("mousedown", (e: MouseEvent) => {
+        this._button.addEventListener("click", nextButtonClick);
+
+        timeoutId = window.setTimeout(() => {
+          this._button.removeEventListener("click", nextButtonClick);
+
+          this.viewTop = `${(e.target! as HTMLElement).offsetTop + 25}px`;
+          this.viewLeft = `${(e.target! as HTMLElement).offsetLeft}px`;
+
+          this.viewDisplay = "block";
+          this._view.scrollTop = 0;
+          C.fixedWrapper.display = "block";
+        }, this.DISPLAY_MOUSEDOWN_TIME);
+      });
+    }
+  }
+
+  /**
+   * Create a favorite button and view container.
+   * @param viewClassName A class name for view.
+   * @param buttonClassName A class name for button.
+   */
+  class BookmarkContainer extends ButtonViewContainer {
+    private _checked: boolean;
+
+    constructor(viewClassName: string, buttonClassName?: string) {
+      super(viewClassName, buttonClassName);
+
+      this._checked = false;
+    }
+
+    get checked() {
+      return this._checked;
+    }
+
+    set checked(bool: boolean) {
+      if (bool) {
+        this._button.setAttribute("checked", "");
+      } else {
+        this._button.removeAttribute("checked");
+      }
+
+      this._checked = bool;
+    }
+
+    /**
+     * Check to see if the displayed seed is a favorite.
+     */
+    checkBookmarkedSeed() {
+      if (location.hash) {
+        const currentSeed = locationhashToSeed(location.hash);
+
+        const filterItem = this._seedItemList.filter(
+          (item) => item.seed === currentSeed
+        );
+
+        if (filterItem[0]) {
+          this.checked = true;
+        } else {
+          this.checked = false;
+        }
+      }
+    }
+
+    /**
+     * Add a seed to the favorite view.
+     * @param seed A string seed value.
+     * @param containerViews Containers.
+     */
+    addBookmarkItem(seed: string, containerViews: ContainerViews) {
+      if (seed) {
+        chrome.storage.sync.set({ [seed]: seed });
+
+        const seedItem = new BookmarkSeedItem(seed, containerViews);
+        this.insertItem(seedItem);
+        this.checked = true;
+      }
+    }
+
+    /**
+     * Remove a seed from the favorite view.
+     * @param seed A string seed value.
+     */
+    removeBookmarkItem(seed: string) {
+      if (seed) {
+        chrome.storage.sync.remove(seed);
+
+        const removeItem = this._seedItemList.filter(
+          (item) => item.seed === seed
+        );
+
+        if (removeItem[0]) {
+          this.removeItem(removeItem[0]);
+          this.checked = false;
+        }
+      }
+    }
+
+    /**
+     * Add the button in this container to mouse event listener.
+     * @param containerViews Containers.
+     */
+    addButtonListener(containerViews: ContainerViews): void {
+      let timeoutId: number;
+
+      const favoriteClick = () => {
+        clearTimeout(timeoutId);
+
+        const seed = locationhashToSeed(location.hash);
+
+        if (this.checked) {
+          this.removeBookmarkItem(seed);
+        } else {
+          this.addBookmarkItem(seed, containerViews);
+        }
+      };
+
+      this._button.addEventListener("mousedown", (e: MouseEvent) => {
+        this._button.addEventListener("click", favoriteClick);
+
+        timeoutId = window.setTimeout(() => {
+          this._button.removeEventListener("click", favoriteClick);
+
+          this.viewTop = `${(e.target! as HTMLElement).offsetTop + 25}px`;
+          this.viewLeft = `${(e.target! as HTMLElement).offsetLeft}px`;
+
+          this.viewDisplay = "block";
+          this._view.scrollTop = 0;
+          containerViews.fixedWrapper.display = "block";
+        }, this.DISPLAY_MOUSEDOWN_TIME);
+      });
+    }
+
+    /**
+     * Get all bookmark items from storage and add them to this view.
+     * @param containerViews
+     */
+    async getBookmarkFromStorage(containerViews: ContainerViews) {
+      const keys = await chrome.storage.sync.get(null);
+
+      for (let key in keys) {
+        const seedItem = new BookmarkSeedItem(key, containerViews);
+        this.appendItem(seedItem);
+      }
+    }
+  }
+
+  /**
+   * Create a default SeedItem.
+   * If constructor parameter is empty, an empty Item is created.
+   * @param state Set state value.
+   * @param setSeed Set seed value.
+   * @param containerViews Containers for listener.
+   */
+  class SeedItem {
+    protected _item: HTMLLIElement;
+    protected _seed: string | undefined;
+    protected _state: number;
+
+    protected _abortController: AbortController;
+
+    constructor(
+      setSeed?: string,
+      containerViews?: ContainerViews,
+      state?: number
+    ) {
+      this._item = document.createElement("li");
+
+      if (state !== undefined && state >= 0) {
+        this._state = state;
+      } else {
+        this._state = -1;
+      }
+
+      this._abortController = new AbortController();
+
+      if (setSeed && containerViews) {
+        this._seed = setSeed;
+        this._item.textContent = this._seed;
+
+        this.addClickListener(containerViews);
+      } else if (setSeed || containerViews) {
+        throw Error("Both seed and containerViews are required");
+      }
+    }
+
+    get element() {
+      return this._item;
+    }
+
+    get seed() {
+      return this._seed;
+    }
+
+    get state() {
+      return this._state;
+    }
+
+    set state(newState: number) {
+      this._state = newState;
+    }
+
+    /**
+     * Add this SeedItem to click listener.
+     * @param C Containers.
+     */
+    protected addClickListener(C: ContainerViews) {
+      this._item.addEventListener(
+        "click",
+        () => {
+          location.replace(seedToLocationHash(this.seed!));
+
+          this.moveSeedItemsByState(C.backView, C.nextView);
+          _currentState_ = this.state;
+
+          C.backView.checkButtonState();
+          C.nextView.checkButtonState();
+          C.bookmarkView.checkBookmarkedSeed();
+
+          C.backView.viewDisplay = "none";
+          C.nextView.viewDisplay = "none";
+          C.fixedWrapper.display = "none";
+
+          setLastState(_currentState_);
+        },
+        { signal: this._abortController.signal }
+      );
+    }
+
+    /**
+     * Move SeedItems in succession.
+     * This SeedItem moves from the clicked position to the current space.
+     * @param backView A back container.
+     * @param nextView A next container.
+     */
+    moveSeedItemsByState(backView: BackContainer, nextView: NextContainer) {
+      const diff = this.state - _currentState_;
+
+      if (diff < 0) {
+        ////////////////////////////////
+        // Move back view to next one.
+        if (_currentSeedItem_.seed) {
+          nextView.insertItem(_currentSeedItem_);
+        }
+
+        for (let i = _currentState_ - 1; i >= this.state; i--) {
+          const item = backView.removeFirstItem();
+
+          if (item) {
+            if (i === this.state) {
+              _currentSeedItem_ = item;
+            } else {
+              nextView.insertItem(item);
+            }
           } else {
-            // if first visited (User does not have a cookie).
-            this._currentState = -1;
-            this._states = -1;
+            _currentSeedItem_ = new CurrentSeedItem();
           }
+        }
+      } else if (diff > 0) {
+        ////////////////////////////////
+        // Move next view to back one.
+        if (_currentSeedItem_.seed) {
+          backView.insertItem(_currentSeedItem_);
+        }
+
+        for (let i = _currentState_ + 1; i <= this.state; i++) {
+          const item = nextView.removeFirstItem();
+
+          if (item) {
+            if (i === this.state) {
+              _currentSeedItem_ = item;
+            } else {
+              backView.insertItem(item);
+            }
+          } else {
+            _currentSeedItem_ = new CurrentSeedItem();
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Create a favorite SeedItem.
+   * @param seed Set seed value.
+   * @param containerViews ContainerViews for Listener.
+   */
+  class BookmarkSeedItem extends SeedItem {
+    constructor(seed: string, containerViews: ContainerViews) {
+      super(seed, containerViews);
+
+      // デフォルトのリスナーを削除して、Favoriteのリスナーを追加
+      this._abortController.abort();
+      this.addClickListener(containerViews);
+    }
+
+    /**
+     * Add this SeedItem to click listener.
+     * @param C Containers.
+     */
+    protected addClickListener(C: ContainerViews) {
+      this._item.addEventListener("click", () => {
+        if (location.hash !== `#${this.seed}`) {
+          // 先の履歴の削除
+          if (_currentState_ < _totalStates_) {
+            for (let i = _currentState_ + 1; i <= _totalStates_; i++) {
+              chrome.storage.local.remove(i.toString());
+              C.nextView.removeFirstItem();
+            }
+            _totalStates_ = _currentState_;
+          }
+
+          _totalStates_++;
+          if (_currentSeedItem_.seed) _currentState_++;
+
+          location.replace(seedToLocationHash(this.seed!));
+
+          if (_currentSeedItem_.seed) {
+            C.backView.insertItem(_currentSeedItem_);
+          }
+
+          _currentSeedItem_ = new CurrentSeedItem(this.seed, C, _currentState_);
+
+          chrome.storage.local.set({ [_totalStates_]: this.seed });
+
+          C.backView.checkButtonState();
+          C.nextView.checkButtonState();
+          C.bookmarkView.checked = true;
+
+          C.bookmarkView.viewDisplay = "none";
+          C.fixedWrapper.display = "none";
+
+          setLastState(_currentState_);
+        }
+        // console.log(_currentState_, _totalStates_);
+      });
+    }
+  }
+
+  /**
+   * Create a current SeedItem.
+   * If constructor parameter is empty, an empty Item is created.
+   * @param setSeed Set seed value.
+   * @param state Set state value.
+   */
+  class CurrentSeedItem extends SeedItem {
+    get element() {
+      return this._item;
+    }
+
+    set element(element: HTMLLIElement) {
+      this._item = element;
+    }
+  }
+
+  /**
+   * Fixed wrapper for closing container views.
+   * @param id A string div element of id.
+   */
+  class FixedWrapper {
+    private _fixedDiv: HTMLDivElement;
+
+    constructor(id: string) {
+      this._fixedDiv = document.createElement("div");
+      this._fixedDiv.id = id;
+    }
+
+    get element() {
+      return this._fixedDiv;
+    }
+
+    set display(param: string) {
+      this._fixedDiv.style.display = param;
+    }
+
+    /**
+     * Add a listener to this element.
+     * @param displayNoneViews Containers you want to close.
+     */
+    addListener(
+      displayNoneViews: ButtonViewContainer[],
+      deleteButton: deleteHistoryButton
+    ) {
+      const noneDisplays = () => {
+        for (let view of displayNoneViews) {
+          view.viewDisplay = "none";
+        }
+
+        this.display = "none";
+        deleteButton.viewDisplay = "none";
+      };
+
+      this._fixedDiv.addEventListener("mousedown", noneDisplays);
+      this._fixedDiv.addEventListener("wheel", noneDisplays);
+    }
+  }
+
+  /**
+   * Create a delete history button.
+   * @param buttonClassName A classname for this button.
+   * @param viewClassName A classname for this view.
+   */
+  class deleteHistoryButton {
+    private _button: HTMLButtonElement;
+    private _view: HTMLDivElement;
+    private _okButton: HTMLButtonElement;
+
+    constructor(buttonClassName: string, viewClassName: string) {
+      this._button = document.createElement("button");
+      this._view = document.createElement("div");
+
+      this._button.className = `gh-button ${buttonClassName}`;
+      this._view.className = viewClassName;
+
+      const span = document.createElement("span");
+      span.textContent = "Delete history?";
+
+      this._okButton = document.createElement("button");
+      this._okButton.className = "gh-button add-history-delete-okbutton";
+      this._okButton.textContent = "OK";
+
+      this._view.appendChild(span);
+      this._view.appendChild(this._okButton);
+    }
+
+    get buttonElement() {
+      return this._button;
+    }
+
+    get viewElement() {
+      return this._view;
+    }
+
+    set viewTop(param: string) {
+      this._view.style.top = param;
+    }
+
+    set viewLeft(param: string) {
+      this._view.style.left = param;
+    }
+
+    set viewDisplay(param: string) {
+      this._view.style.display = param;
+    }
+
+    /**
+     * Add a click listener to this button.
+     * @param C Containers.
+     */
+    addButtonListener(C: ContainerViews) {
+      this._button.addEventListener("click", (e: MouseEvent) => {
+        this.viewTop = `${(e.target! as HTMLElement).offsetTop + 25}px`;
+        this.viewLeft = `25px`;
+
+        this.viewDisplay = "block";
+        C.fixedWrapper.display = "block";
+      });
+
+      this._okButton.addEventListener("click", () => {
+        chrome.storage.local.clear();
+
+        _currentState_ = 0;
+        _totalStates_ = -1;
+
+        _currentSeedItem_ = new CurrentSeedItem();
+
+        C.backView.removeAllItem();
+        C.nextView.removeAllItem();
+
+        C.backView.checkButtonState();
+        C.nextView.checkButtonState();
+
+        this.viewDisplay = "none";
+        C.fixedWrapper.display = "none";
+      });
+    }
+  }
+
+  ///////////////
+  // functions //
+  ///////////////
+  /**
+   * Convert a seed string to a hash string.
+   * @param seed A string seed value.
+   * @returns A string hash value.
+   */
+  function seedToLocationHash(seed: string) {
+    return "#" + seed;
+  }
+
+  /**
+   * Convert a hash string to a seed string.
+   * @param hash A string hash value.
+   * @returns A string seed value.
+   */
+  function locationhashToSeed(hash: string) {
+    return hash.replace(/^#/, "");
+  }
+
+  /**
+   * Set last viewing state.
+   * @param state A state number.
+   */
+  function setLastState(state: number) {
+    chrome.storage.local.set({ lastState: state });
+  }
+
+  /**
+   * Get session data from storage.
+   * @param C Containers for init and listener.
+   */
+  async function getStorage(C: ContainerViews) {
+    const storageSeeds = await chrome.storage.local.get(null);
+    const currentSeed = locationhashToSeed(location.hash);
+
+    let lastState = storageSeeds.lastState as number;
+    let duplicate = [];
+
+    // 現在ハッシュでのシードの重複を探す
+    for (let key in storageSeeds) {
+      if (currentSeed === storageSeeds[key]) {
+        duplicate.push(key);
+      }
+    }
+
+    // 重複があれば、最後に見たシード位置かどうか調べる
+    if (duplicate.length > 1) {
+      if (!duplicate.includes(lastState.toString())) {
+        // 当てはまらなければ、通常通りにする
+        lastState = -1;
+      }
+    }
+
+    for (let i = 0; ; i++) {
+      // セッションが残っているなら最後に見た位置を復元する
+      if (currentSeed === storageSeeds[i] && lastState === i) {
+        _currentState_ = i;
+        // console.log("init", storageSeeds[i]);
+      }
+
+      if (!storageSeeds[i]) {
+        // undefined
+        if (i === 0) {
+          // Storage is empty
+          _currentState_ = 0;
+          _totalStates_ = -1;
 
           break;
         } else {
           // ハッシュがセッションに存在しなければ現在位置を最後+1
-          if (this._currentState === -1) {
-            this._currentState = i;
+          if (_currentState_ === -1) {
+            _currentState_ = i;
           }
 
-          this._states = i - 1;
+          _totalStates_ = i - 1;
 
           break;
         }
+      } else {
+        if (i < _currentState_ || _currentState_ === -1) {
+          C.backView.insertItem(new SeedItem(storageSeeds[i], C, i));
+        } else if (i > _currentState_) {
+          C.nextView.appendItem(new SeedItem(storageSeeds[i], C, i));
+        } else if (i === _currentState_) {
+          _currentSeedItem_ = new CurrentSeedItem(storageSeeds[i], C, i);
+        }
       }
-
-      // console.log(sessionStorage.getItem(i.toString()));
     }
-
-    /////////
-    // init
-    [this._wrapper, this._backButton, this._nextButton] = this._addButtons();
-    [this._backView, this._backViewOl] = this._createHistoryView();
-    [this._nextView, this._nextViewOl] = this._createHistoryView();
-    this._wrapper.appendChild(this._backView);
-    this._wrapper.appendChild(this._nextView);
-
-    this._fixedDiv = this._addFixedDiv();
-
-    // add lists backView
-    for (let i = 0; i < this._currentState; i++) {
-      const li = this._createList(i);
-      this._backViewOl.insertAdjacentElement("afterbegin", li);
-    }
-
-    // add lists nextView
-    for (let i = this._currentState + 1; i <= this._states; i++) {
-      const li = this._createList(i);
-      this._nextViewOl.appendChild(li);
-    }
-
-    // current seed list element
-    // 初期化で値が無い場合は、空のリストをcurrentElemにする
-    this._currentElem = this._createList(this._currentState);
-
-    // add click listener
-    this._addButtonClickBehavier();
-    this._addSeedRandomClickListener();
-
-    this._checkButtonState();
-
-    // Init favoreite button
-    this._favoriteButton = this._addFavoriteButton();
-    [this._favoriteView, this._favoriteViewOl] = this._createHistoryView();
-    this._wrapper.appendChild(this._favoriteView);
-
-    this._initFavoriteItem(this._favoriteViewOl);
+    // console.log(_currentState_, _totalStates_);
   }
 
   /**
-   * Add history Buttons
-   * @returns Tuple: wrapper div and backButton, nextButton inside it.
+   * Add click listener to a random button in Biome Finder.
+   * @param C ContainerViews.
    */
-  private _addButtons(): [
-    HTMLDivElement,
-    HTMLButtonElement,
-    HTMLButtonElement
-  ] {
-    const wrapper = document.createElement("div");
-    wrapper.id = this.WRAPPER_ID;
+  function addSeedRandomClickListener(C: ContainerViews) {
+    const ramdomButton = document.getElementById("seed-random");
 
-    const span = document.createElement("span");
-    span.textContent = "History:";
+    ramdomButton!.addEventListener("click", () => {
+      // 先の履歴の削除
+      if (_currentState_ < _totalStates_) {
+        for (let i = _currentState_ + 1; i <= _totalStates_; i++) {
+          chrome.storage.local.remove(i.toString());
+          C.nextView.removeFirstItem();
+        }
+        _totalStates_ = _currentState_;
+      }
 
-    const backButton = document.createElement("button");
-    backButton.className = "gh-button";
-    backButton.textContent = "Back";
+      _totalStates_++;
+      if (_currentSeedItem_.seed) _currentState_++;
 
-    const nextButton = document.createElement("button");
-    nextButton.className = "gh-button";
-    nextButton.textContent = "Next";
+      const seed = locationhashToSeed(location.hash);
 
-    wrapper.appendChild(span);
-    wrapper.appendChild(backButton);
-    wrapper.appendChild(nextButton);
+      if (_currentSeedItem_.state >= 0) {
+        C.backView.insertItem(_currentSeedItem_);
+      }
+
+      _currentSeedItem_ = new CurrentSeedItem(seed, C, _currentState_);
+
+      chrome.storage.local.set({ [_totalStates_]: seed });
+      // console.log(_currentState_, _totalStates_, _currentSeedItem_);
+
+      C.backView.checkButtonState();
+      C.nextView.checkButtonState();
+      C.bookmarkView.checkBookmarkedSeed();
+
+      setLastState(_currentState_);
+    });
+  }
+
+  /**
+   * Init main. Run Add-History.
+   */
+  export async function main() {
+    const mainContainer = new MainContainer("add-history", "History");
+    const backContainer = new BackContainer("add-history-view");
+    const nextContainer = new NextContainer("add-history-view");
+    const bookmarkContainer = new BookmarkContainer(
+      "add-history-view",
+      "icon star"
+    );
+    const fixedWrapper = new FixedWrapper("add-history-fixed");
+    const deleteButton = new deleteHistoryButton(
+      "add-history-delete-button",
+      "add-history-delete-view"
+    );
 
     const fancyInputs = document.querySelector(".fancy-inputs-section");
-    fancyInputs!.appendChild(wrapper);
+    fancyInputs!.appendChild(mainContainer.element);
 
-    return [wrapper, backButton, nextButton];
-  }
+    mainContainer.append(backContainer.buttonElement);
+    mainContainer.append(nextContainer.buttonElement);
+    mainContainer.append(bookmarkContainer.buttonElement);
+    mainContainer.append(deleteButton.buttonElement);
+    mainContainer.append(backContainer.viewElement);
+    mainContainer.append(nextContainer.viewElement);
+    mainContainer.append(bookmarkContainer.viewElement);
+    mainContainer.append(deleteButton.viewElement);
+    document.body.appendChild(fixedWrapper.element);
 
-  /**
-   * Create absolute position history view.
-   * @returns Tuple: historyView div and ol inside it.
-   */
-  private _createHistoryView(): [HTMLDivElement, HTMLOListElement] {
-    const historyView = document.createElement("div");
-    historyView.className = this.HISTORY_VIEW_CLASS;
-
-    const ol = document.createElement("ol");
-
-    historyView.appendChild(ol);
-
-    return [historyView, ol];
-  }
-
-  /**
-   * Add fixed div for history views.
-   * @returns Fixed position div.
-   */
-  private _addFixedDiv(): HTMLDivElement {
-    const fixedDiv = document.createElement("div");
-    fixedDiv.id = this.FIXED_DIV_ID;
-
-    const releaseListener = () => {
-      this._backView.style.display = "none";
-      this._nextView.style.display = "none";
-      fixedDiv.style.display = "none";
-      this._favoriteView.style.display = "none";
+    // Container view for referencing variables in event listeners.
+    const containerViews: ContainerViews = {
+      backView: backContainer,
+      nextView: nextContainer,
+      bookmarkView: bookmarkContainer,
+      fixedWrapper: fixedWrapper,
     };
 
-    fixedDiv.addEventListener("mousedown", releaseListener);
-    fixedDiv.addEventListener("wheel", releaseListener);
-
-    document.body.appendChild(fixedDiv);
-
-    return fixedDiv;
-  }
-
-  /**
-   * Check buttton state by currentState.
-   */
-  private _checkButtonState() {
-    if (this._currentState <= 0) {
-      this._backButton.disabled = true;
-    } else {
-      this._backButton.disabled = false;
-    }
-
-    if (this._currentState >= this._states) {
-      this._nextButton.disabled = true;
-    } else {
-      this._nextButton.disabled = false;
-    }
-  }
-
-  /**
-   * Crate a seed list element.
-   * @param state State of the list to be created.
-   */
-  private _createList(state: number): HTMLLIElement {
-    const li = document.createElement("li");
-
-    const value = sessionStorage.getItem(state.toString());
-    if (value) {
-      li.textContent = value.replace(/^.+#/, "");
-
-      li.addEventListener("click", () => {
-        // console.log(value, state, this._currentState);
-        location.replace(value!);
-
-        this._moveViewListsByState(state);
-        this._currentState = state;
-
-        this._checkButtonState();
-        this._checkFavoritedSeed();
-
-        this._backView.style.display = "none";
-        this._nextView.style.display = "none";
-        this._fixedDiv.style.display = "none";
-      });
-    }
-
-    return li;
-  }
-
-  /**
-   * Move list by state on View
-   */
-  private _moveViewListsByState(newState: number) {
-    const diff = newState - this._currentState;
-
-    if (diff < 0) {
-      ////////////////////////////////
-      // Move back view to next one.
-      if (this._currentElem.textContent) {
-        this._nextViewOl.insertAdjacentElement("afterbegin", this._currentElem);
-      }
-
-      for (let i = this._currentState - 1; i >= newState; i--) {
-        const item = this._backViewOl.removeChild<HTMLLIElement>(
-          this._backViewOl.firstChild as HTMLLIElement
-        );
-
-        if (i === newState) {
-          this._currentElem = item;
-        } else {
-          this._nextViewOl.insertAdjacentElement("afterbegin", item);
-        }
-      }
-    } else if (diff > 0) {
-      ////////////////////////////////
-      // Move next view to back one.
-      if (this._currentElem.textContent) {
-        this._backViewOl.insertAdjacentElement("afterbegin", this._currentElem);
-      }
-
-      for (let i = this._currentState + 1; i <= newState; i++) {
-        const item = this._nextViewOl.removeChild<HTMLLIElement>(
-          this._nextViewOl.firstChild as HTMLLIElement
-        );
-
-        if (i === newState) {
-          this._currentElem = item;
-        } else {
-          this._backViewOl.insertAdjacentElement("afterbegin", item);
-        }
-      }
-    }
-  }
-
-  /**
-   * Move history view list by click buttons.
-   * @param {HistoryMoveDir} moveDir History direction.
-   */
-  private _moveViewList(moveDir: HistoryMoveDir) {
-    if (moveDir === AddHistory.HistoryMove.Back) {
-      if (this._currentElem.textContent) {
-        this._nextViewOl.insertAdjacentElement("afterbegin", this._currentElem);
-      }
-
-      this._currentElem = this._backViewOl.removeChild<HTMLLIElement>(
-        this._backViewOl.firstChild as HTMLLIElement
-      );
-    } else if (moveDir === AddHistory.HistoryMove.Next) {
-      if (this._currentElem.textContent) {
-        this._backViewOl.insertAdjacentElement("afterbegin", this._currentElem);
-      }
-
-      this._currentElem = this._nextViewOl.removeChild<HTMLLIElement>(
-        this._nextViewOl.firstChild as HTMLLIElement
-      );
-    }
-  }
-
-  /**
-   * Add event listener to buttons.
-   */
-  private _addButtonClickBehavier() {
-    let timeoutId: number;
-
-    ////////////////
-    // back button
-    const backButtonClick = () => {
-      clearTimeout(timeoutId);
-
-      this._currentState--;
-      const value = sessionStorage.getItem(this._currentState.toString());
-      location.replace(value!);
-      // console.log(currentState, states);
-
-      this._checkButtonState();
-      this._checkFavoritedSeed();
-      this._moveViewList(AddHistory.HistoryMove.Back);
-    };
-
-    this._backButton.addEventListener("mousedown", (e: MouseEvent) => {
-      e.preventDefault();
-      this._backButton.addEventListener("click", backButtonClick);
-
-      timeoutId = window.setTimeout(() => {
-        this._backButton.removeEventListener("click", backButtonClick);
-
-        this._backView.style.top = `${
-          (e.target! as HTMLElement).offsetTop + 25
-        }px`;
-        this._backView.style.left = `${
-          (e.target! as HTMLElement).offsetLeft
-        }px`;
-
-        this._backView.style.display = "block";
-        this._backView.scrollTop = 0;
-        this._fixedDiv.style.display = "block";
-      }, this.DISPLAY_MOUSEDOWN_TIME);
-    });
-
-    ////////////////
-    // next button
-    const nextButtonClick = () => {
-      clearTimeout(timeoutId);
-
-      this._currentState++;
-      const value = sessionStorage.getItem(this._currentState.toString());
-      location.replace(value!);
-      // console.log(currentState, states);
-
-      this._checkButtonState();
-      this._checkFavoritedSeed();
-      this._moveViewList(AddHistory.HistoryMove.Next);
-    };
-
-    this._nextButton.addEventListener("mousedown", (e: MouseEvent) => {
-      e.preventDefault();
-      this._nextButton.addEventListener("click", nextButtonClick);
-
-      timeoutId = window.setTimeout(() => {
-        this._nextButton.removeEventListener("click", nextButtonClick);
-
-        this._nextView.style.top = `${
-          (e.target! as HTMLElement).offsetTop + 25
-        }px`;
-        this._nextView.style.left = `${
-          (e.target! as HTMLElement).offsetLeft
-        }px`;
-
-        this._nextView.style.display = "block";
-        this._nextView.scrollTop = 0;
-        this._fixedDiv.style.display = "block";
-      }, this.DISPLAY_MOUSEDOWN_TIME);
-    });
-  }
-
-  /**
-   * Add click listener to a random button
-   */
-  private _addSeedRandomClickListener() {
-    const seed = document.getElementById("seed-random");
-
-    seed!.addEventListener("click", () => {
-      if (this._currentState < this._states) {
-        for (let i = this._currentState + 1; i <= this._states; i++) {
-          sessionStorage.removeItem(i.toString());
-          this._nextViewOl.removeChild(this._nextViewOl.firstChild!);
-        }
-        this._states = this._currentState;
-      }
-
-      this._states++;
-      this._currentState++;
-      // console.log(this._currentState, this._states);
-
-      sessionStorage.setItem(this._states.toString(), location.href);
-
-      if (this._currentElem.textContent) {
-        this._backViewOl.insertAdjacentElement("afterbegin", this._currentElem);
-      }
-      this._currentElem = this._createList(this._currentState);
-
-      this._checkButtonState();
-      this._checkFavoritedSeed();
-    });
-  }
-
-  /////////////////////////////
-  // Favorite button methods //
-  /////////////////////////////
-  /**
-   * Add favorite button.
-   */
-  private _addFavoriteButton() {
-    const favButton = document.createElement("button");
-    favButton.className = "gh-button icon star";
-
-    let timeoutId: number;
-    const favClickEvent = () => {
-      clearTimeout(timeoutId);
-
-      if (favButton.getAttribute("checked") === null) {
-        this._addFavoriteItem(this._favoriteViewOl);
-        favButton.setAttribute("checked", "");
-      } else {
-        this._removeFavoriteItem(this._favoriteViewOl);
-        favButton.removeAttribute("checked");
-      }
-    };
-
-    favButton.addEventListener("mousedown", (e: MouseEvent) => {
-      favButton.addEventListener("click", favClickEvent);
-
-      timeoutId = setTimeout(() => {
-        favButton.removeEventListener("click", favClickEvent);
-
-        this._favoriteView.style.top = `${
-          (e.target! as HTMLElement).offsetTop + 25
-        }px`;
-        this._favoriteView.style.left = `${
-          (e.target! as HTMLElement).offsetLeft
-        }px`;
-
-        this._favoriteView.style.display = "block";
-        this._favoriteView.scrollTop = 0;
-        this._fixedDiv.style.display = "block";
-      }, this.DISPLAY_MOUSEDOWN_TIME);
-    });
-
-    this._wrapper.appendChild(favButton);
-
-    return favButton;
-  }
-
-  private _checkFavoritedSeed() {
-    if (location.hash) {
-      const seed = location.hash.replace(/^#/, "");
-
-      for (let child of this._favoriteViewOl.children) {
-        if (child.textContent === seed) {
-          this._favoriteButton.setAttribute("checked", "");
-          return;
-        }
-      }
-
-      this._favoriteButton.removeAttribute("checked");
-    }
-  }
-
-  private _addFavoriteItem(ol: HTMLOListElement) {
-    if (location.hash) {
-      const seed = location.hash.replace(/^#/, "");
-      chrome.storage.sync.set({ [seed]: seed });
-
-      const li = this._createFavList(seed);
-      ol.insertAdjacentElement("afterbegin", li);
-    }
-  }
-
-  private _removeFavoriteItem(ol: HTMLOListElement) {
-    if (location.hash) {
-      const seed = location.hash.replace(/^#/, "");
-      chrome.storage.sync.remove(seed);
-
-      for (let child of ol.children) {
-        if (child.textContent === seed) {
-          child.remove();
-          break;
-        }
-      }
-    }
-  }
-
-  private _createFavList(seed: string): HTMLLIElement {
-    const li = document.createElement("li");
-
-    if (seed) {
-      li.textContent = seed;
-      li.addEventListener("click", () => {
-        console.log(location.hash, `#${li.textContent}`);
-        if (location.hash !== `#${li.textContent}`) {
-          if (this._currentState < this._states) {
-            for (let i = this._currentState + 1; i <= this._states; i++) {
-              sessionStorage.removeItem(i.toString());
-              this._nextViewOl.removeChild(this._nextViewOl.firstChild!);
-            }
-            this._states = this._currentState;
-          }
-
-          this._states++;
-          this._currentState++;
-          // console.log(this._currentState, this._states);
-
-          location.replace(location.pathname + "#" + seed);
-          sessionStorage.setItem(this._states.toString(), location.href);
-
-          if (this._currentElem.textContent) {
-            this._backViewOl.insertAdjacentElement(
-              "afterbegin",
-              this._currentElem
-            );
-          }
-          this._currentElem = this._createList(this._currentState);
-
-          this._checkButtonState();
-          this._favoriteButton.setAttribute("checked", "");
-
-          this._favoriteView.style.display = "none";
-          this._fixedDiv.style.display = "none";
-        }
-      });
-    }
-
-    return li;
-  }
-
-  private async _initFavoriteItem(ol: HTMLOListElement) {
-    // chrome.storage.sync.clear();
-    const keys = await chrome.storage.sync.get(null);
-
-    for (let key in keys) {
-      const li = this._createFavList(key);
-      ol.insertAdjacentElement("afterbegin", li);
-    }
-
-    this._checkFavoritedSeed();
+    // Init empty current seedlist element
+    _currentSeedItem_ = new CurrentSeedItem();
+
+    // Parse data from storage.
+    await getStorage(containerViews);
+    await bookmarkContainer.getBookmarkFromStorage(containerViews);
+
+    // Add click listeners
+    backContainer.addButtonListener(containerViews);
+    nextContainer.addButtonListener(containerViews);
+    bookmarkContainer.addButtonListener(containerViews);
+    fixedWrapper.addListener(
+      [backContainer, nextContainer, bookmarkContainer],
+      deleteButton
+    );
+    deleteButton.addButtonListener(containerViews);
+    addSeedRandomClickListener(containerViews);
+
+    // Init check button state
+    backContainer.checkButtonState();
+    nextContainer.checkButtonState();
+    bookmarkContainer.checkBookmarkedSeed();
   }
 }
 
-new AddHistory();
+// new AddHistory();
+AddHistory.main();
 console.log("Random Seed of History: Added.");

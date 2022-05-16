@@ -3,6 +3,13 @@ $color-black: #000;
 $color-gray: #b5b5b5;
 $color-hover-blue: #1e90ff;
 
+%button-danger {
+  border-color: #d74b4b;
+  border-bottom-color: #c84848;
+  background-color: #f56969;
+  background-image: linear-gradient(#f56969, #d94d4d);
+}
+
 #add-history {
   display: inline-block;
   position: relative;
@@ -44,6 +51,45 @@ $color-hover-blue: #1e90ff;
       }
     }
   }
+
+  .add-history-delete {
+    &-button {
+      width: 25px;
+
+      &:hover {
+        @extend %button-danger;
+      }
+
+      &:active {
+        @extend %button-danger;
+      }
+    }
+
+    &-view {
+      background-color: #d7e8f3;
+      box-shadow: 0 0 0 1px #a5cbf1;
+      border: 2px solid #e2eefb;
+
+      display: none;
+      position: absolute;
+      z-index: 2022;
+      padding: 0 10px;
+
+      > span {
+        margin-right: 4px;
+      }
+    }
+
+    &-okbutton {
+      &:hover {
+        @extend %button-danger;
+      }
+
+      &:active {
+        @extend %button-danger;
+      }
+    }
+  }
 }
 
 #add-history-fixed {
@@ -62,13 +108,13 @@ $color-hover-blue: #1e90ff;
   &.icon {
     &:before {
       background-position: -12px -348px;
-      left: -2px;
+      left: -3px;
       transition: transform ease-out 500ms;
     }
 
     &[checked]:before {
       background-position: 0 -348px;
-      left: -2px;
+      left: -3px;
       transform: rotateZ(145deg);
     }
   }
