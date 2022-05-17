@@ -3,6 +3,7 @@ namespace AddHistory {
     Back: 0,
     Next: 1,
   } as const;
+
   declare type HistoryMoveDir = typeof HistoryMove[keyof typeof HistoryMove];
 
   declare type ContainerViews = {
@@ -12,15 +13,18 @@ namespace AddHistory {
     fixedWrapper: FixedWrapper;
   };
 
-  /////////////////////////////
-  // namespace variable scope
+  //==========================||
+  // Namespace variable scope ||-----------------------------------------|
+  //==========================||
   const inputElement = document.getElementById("seed") as HTMLInputElement;
 
   let _currentState_ = -1;
   let _totalStates_ = -1;
   let _currentSeedItem_: CurrentSeedItem;
 
-
+  //=========||
+  // Classes ||----------------------------------------------------------|
+  //=========||
   /**
    * Create a main container.
    * @param id A main element id.
@@ -215,7 +219,7 @@ namespace AddHistory {
     }
 
     /**
-     * Add the button in this container to mouse event listener.
+     * Add a mouse event listener to the button in this container.
      * @param C Containers.
      */
     addButtonListener(C: ContainerViews): void {
@@ -279,7 +283,7 @@ namespace AddHistory {
     }
 
     /**
-     * Add the button in this container to mouse event listener.
+     * Add a mouse event listener to the button in this container.
      * @param C Containers.
      */
     addButtonListener(C: ContainerViews) {
@@ -402,7 +406,7 @@ namespace AddHistory {
     }
 
     /**
-     * Add the button in this container to mouse event listener.
+     * Add a mouse event listener to the button in this container.
      * @param containerViews Containers.
      */
     addButtonListener(containerViews: ContainerViews): void {
@@ -586,8 +590,8 @@ namespace AddHistory {
   class BookmarkSeedItem extends SeedItem {
     constructor(seed: string, containerViews: ContainerViews) {
       super(seed, containerViews);
-      // superコンストラクタで呼び出されたメソッドがオーバーライドされていると
-      // こちら側が呼びだされるらしい...
+      // 継承先から呼び出したsuperコンストラクタに
+      // オーバーライドされるメソッドがある場合、継承先のメソッドが呼びだされる
     }
 
     /**
@@ -675,7 +679,7 @@ namespace AddHistory {
      */
     addListener(
       displayNoneViews: ButtonViewContainer[],
-      deleteButton: deleteHistoryButton
+      deleteView: DeleteHistoryContainer
     ) {
       const noneDisplays = () => {
         for (let view of displayNoneViews) {
@@ -683,7 +687,7 @@ namespace AddHistory {
         }
 
         this.display = "none";
-        deleteButton.viewDisplay = "none";
+        deleteView.viewDisplay = "none";
       };
 
       this._fixedDiv.addEventListener("mousedown", noneDisplays);
@@ -692,11 +696,11 @@ namespace AddHistory {
   }
 
   /**
-   * Create a delete history button.
+   * Create a delete history button and view container.
    * @param buttonClassName A classname for this button.
    * @param viewClassName A classname for this view.
    */
-  class deleteHistoryButton {
+  class DeleteHistoryContainer {
     private _button: HTMLButtonElement;
     private _view: HTMLDivElement;
     private _okButton: HTMLButtonElement;
@@ -704,6 +708,11 @@ namespace AddHistory {
     constructor(buttonClassName: string, viewClassName: string) {
       this._button = document.createElement("button");
       this._view = document.createElement("div");
+
+      const buttonImg = document.createElement("img");
+      buttonImg.src = chrome.runtime.getURL("./images/delete_forever_24.png");
+      buttonImg.draggable = false;
+      this._button.appendChild(buttonImg);
 
       this._button.className = `gh-button ${buttonClassName}`;
       this._view.className = viewClassName;
@@ -740,12 +749,12 @@ namespace AddHistory {
     }
 
     /**
-     * Add a click listener to this button.
+     * Add a click listener to the button in this container.
      * @param C Containers.
      */
     addButtonListener(C: ContainerViews) {
       this._button.addEventListener("click", (e: MouseEvent) => {
-        this.viewTop = `${(e.target! as HTMLElement).offsetTop + 25}px`;
+        this.viewTop = `${(e.target! as HTMLElement).offsetTop + 30}px`;
         this.viewLeft = `25px`;
 
         this.viewDisplay = "block";
@@ -772,13 +781,13 @@ namespace AddHistory {
     }
   }
 
-  ///////////////
-  // functions //
-  ///////////////
+  //===========||
+  // Functions ||--------------------------------------------------------|
+  //===========||
   /**
    * Create a hash code from string.
    * @param s A string.
-   * @returns A hash code.
+   * @returns A created hash code.
    */
   function createHashCode(s: string) {
     let hashCode = 0;
@@ -791,8 +800,11 @@ namespace AddHistory {
   }
 
   /**
-   * Change seed input and auto hash change.
-   * @param seed
+   * Change seed input area value.
+   * When this input area focus is removed,
+   * URL hash is automatically changed
+   * by Biome Finder specifications.
+   * @param seed A seed value.
    */
   function changeSeed(seed: string) {
     inputElement.value = seed;
@@ -809,10 +821,10 @@ namespace AddHistory {
   }
 
   /**
-   * Get session data from storage.
+   * Get all history items from storage and add them to back and next view.
    * @param C Containers for init and listener.
    */
-  async function getStorage(C: ContainerViews) {
+  async function getHistoryFromStorage(C: ContainerViews) {
     const storageSeeds = await chrome.storage.local.get(null);
     const currentSeed = inputElement.value;
 
@@ -873,7 +885,7 @@ namespace AddHistory {
   }
 
   /**
-   * Add click listener to a random button in Biome Finder.
+   * Add a click listener to a random button in Biome Finder.
    * @param C ContainerViews.
    */
   function addSeedRandomClickListener(C: ContainerViews) {
@@ -910,10 +922,14 @@ namespace AddHistory {
     });
   }
 
+  //===============||
+  // Main function ||----------------------------------------------------|
+  //===============||
   /**
-   * Init main. Run Add-History.
+   * Init and run Add-History.
    */
   export async function main() {
+    // Create instances
     const mainContainer = new MainContainer("add-history", "History");
     const backContainer = new BackContainer("add-history-view");
     const nextContainer = new NextContainer("add-history-view");
@@ -922,22 +938,25 @@ namespace AddHistory {
       "icon star"
     );
     const fixedWrapper = new FixedWrapper("add-history-fixed");
-    const deleteButton = new deleteHistoryButton(
+    const deleteHistoryContainer = new DeleteHistoryContainer(
       "add-history-delete-button",
       "add-history-delete-view"
     );
 
+    // Append elements to HTML
     const fancyInputs = document.querySelector(".fancy-inputs-section");
     fancyInputs!.appendChild(mainContainer.element);
 
     mainContainer.append(backContainer.buttonElement);
     mainContainer.append(nextContainer.buttonElement);
     mainContainer.append(bookmarkContainer.buttonElement);
-    mainContainer.append(deleteButton.buttonElement);
+    mainContainer.append(deleteHistoryContainer.buttonElement);
+
     mainContainer.append(backContainer.viewElement);
     mainContainer.append(nextContainer.viewElement);
     mainContainer.append(bookmarkContainer.viewElement);
-    mainContainer.append(deleteButton.viewElement);
+    mainContainer.append(deleteHistoryContainer.viewElement);
+
     document.body.appendChild(fixedWrapper.element);
 
     // Container view for referencing variables in event listeners.
@@ -948,22 +967,22 @@ namespace AddHistory {
       fixedWrapper: fixedWrapper,
     };
 
-    // Init empty current seedlist element
+    // Init a empty current seed item
     _currentSeedItem_ = new CurrentSeedItem();
 
     // Parse data from storage.
-    await getStorage(containerViews);
+    await getHistoryFromStorage(containerViews);
     await bookmarkContainer.getBookmarkFromStorage(containerViews);
 
     // Add click listeners
     backContainer.addButtonListener(containerViews);
     nextContainer.addButtonListener(containerViews);
     bookmarkContainer.addButtonListener(containerViews);
+    deleteHistoryContainer.addButtonListener(containerViews);
     fixedWrapper.addListener(
       [backContainer, nextContainer, bookmarkContainer],
-      deleteButton
+      deleteHistoryContainer
     );
-    deleteButton.addButtonListener(containerViews);
     addSeedRandomClickListener(containerViews);
 
     // Init check button state
@@ -978,6 +997,8 @@ namespace AddHistory {
   }
 }
 
-// new AddHistory();
+//==============||
+// Global scope ||-------------------------------------------------------|
+//==============||
 AddHistory.main();
 console.log("Random Seed of History: Added.");

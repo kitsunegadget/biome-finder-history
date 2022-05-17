@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Random Seed of History on Biome Finder",
-  "version": "2.0",
+  "version": "2.1",
   "description": "Add history to the random seed created within Biome Finder.",
   "icons": {},
   "author": "Kitsune Gadget / Yu",
@@ -12,5 +12,11 @@
       "css": ["add-history.css"]
     }
   ],
-  "permissions": ["storage"]
+  "permissions": ["storage"],
+  "web_accessible_resources": [
+    {
+      "resources": ["/images/delete_forever_24.png"],
+      "matches": ["https://www.chunkbase.com/*"]
+    }
+  ]
 }

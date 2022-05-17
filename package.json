@@ -1,6 +1,6 @@
 {
   "name": "biome-finder-history",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Add history to the random seed created within Biome Finder.",
   "main": "add-history.ts",
   "scripts": {
@@ -8,7 +8,9 @@
     "watch:sass": "npm run copy & sass --watch ./src:./dist",
     "build:ts": "tsc",
     "build:sass": "sass --no-source-map ./src:./dist",
-    "copy": "copyfiles -E -f \"./src/manifest.json\" ./dist",
+    "copy:manifest": "copyfiles -E -f \"./src/manifest.json\" ./dist",
+    "copy:imgs": "copyfiles -E -f \"./src/images/delete_forever_24.png\" ./dist/images",
+    "copy": "npm run copy:manifest & npm run copy:imgs",
     "clean": "rimraf dist",
     "build": "npm run clean | npm run build:ts & npm run build:sass & npm run copy"
   },
