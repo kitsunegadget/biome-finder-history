@@ -7,9 +7,12 @@
   "author": "Kitsune Gadget / Yu",
   "content_scripts": [
     {
-      "matches": [
-        "https://www.chunkbase.com/apps/seed-map",
-        "https://www.chunkbase.com/apps/biome-finder"
+      "matches": ["https://www.chunkbase.com/apps/*"],
+      "exclude_matches": [
+        "*://*/*/spawn-chunks-reader",
+        "*://*/*/seed-finder-slimes",
+        "*://*/*/superflat-generator",
+        "*://*/*/block-compendium"
       ],
       "js": ["seed-history.js"],
       "css": ["seed-history.css"]
