@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Random Seed of History on Biome Finder",
-  "version": "2.1",
+  "name": "Random Seed History on Biome Finder",
+  "version": "2.1.2",
   "description": "Add history to the random seed created within Biome Finder.",
   "icons": {},
   "author": "Kitsune Gadget / Yu",
