@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Random Seed History on Seed Map",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Add history to the random seed created within Seed Map.",
   "icons": {},
   "author": "Kitsune Gadget / Yu",
@@ -9,6 +9,7 @@
     {
       "matches": ["https://www.chunkbase.com/apps/*"],
       "exclude_matches": [
+        "*://*/*/",
         "*://*/*/spawn-chunks-reader",
         "*://*/*/seed-finder-slimes",
         "*://*/*/superflat-generator",

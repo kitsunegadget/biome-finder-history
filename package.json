@@ -1,6 +1,6 @@
 {
   "name": "seed-map-with-history",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Add history to random seeds created within Seed Map.",
   "scripts": {
     "watch:js": "npm run copy & tsc --watch --sourceMap",
