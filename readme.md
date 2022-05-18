@@ -1,4 +1,4 @@
-# Random Seed of History on Biome Finder
+# Random Seed History on Biome Finder
 
 Biome Finder のランダムシードボタンに、履歴ボタンを追加する拡張機能です。
 おまけでブックマーク機能も付いています。
