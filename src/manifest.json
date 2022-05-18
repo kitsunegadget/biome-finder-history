@@ -8,8 +8,8 @@
   "content_scripts": [
     {
       "matches": ["https://www.chunkbase.com/apps/biome-finder"],
-      "js": ["add-history.js"],
-      "css": ["add-history.css"]
+      "js": ["seed-history.js"],
+      "css": ["seed-history.css"]
     }
   ],
   "permissions": ["storage"],

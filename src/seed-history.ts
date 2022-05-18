@@ -1,4 +1,4 @@
-namespace AddHistory {
+namespace SeedHistory {
   const HistoryMove = {
     Back: 0,
     Next: 1,
@@ -1006,5 +1006,5 @@ namespace AddHistory {
 //==============||
 // Global scope ||-------------------------------------------------------|
 //==============||
-AddHistory.main();
+SeedHistory.main();
 console.log("Random Seed of History: Added.");
