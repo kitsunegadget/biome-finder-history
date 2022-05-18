@@ -1,5 +1,5 @@
 {
-  "name": "biome-finder-history",
+  "name": "biome-finder-seed-history",
   "version": "2.1.2",
   "description": "Add history to random seeds created within Biome Finder.",
   "scripts": {
