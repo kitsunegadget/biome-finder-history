@@ -1,7 +1,7 @@
 {
   "name": "biome-finder-history",
   "version": "2.1.0",
-  "description": "Add history to the random seed created within Biome Finder.",
+  "description": "Add history to random seeds created within Biome Finder.",
   "main": "add-history.ts",
   "scripts": {
     "watch:ts": "npm run copy & tsc --watch --sourceMap",
