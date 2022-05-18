@@ -16,7 +16,7 @@ namespace SeedHistory {
   //==========================||
   // Namespace variable scope ||-----------------------------------------|
   //==========================||
-  const _mainClassName_ = "seed-history";
+  const _mainName_ = "seed-history";
   const _inputElement_ = document.getElementById("seed") as HTMLInputElement;
 
   let _currentState_ = -1;
@@ -728,7 +728,7 @@ namespace SeedHistory {
       span.textContent = "Delete history?";
 
       this._okButton = document.createElement("button");
-      this._okButton.className = `gh-button ${_mainClassName_}-delete-okbutton`;
+      this._okButton.className = `gh-button ${_mainName_}-delete-okbutton`;
       this._okButton.textContent = "OK";
 
       this._view.appendChild(span);
@@ -936,18 +936,18 @@ namespace SeedHistory {
    */
   export async function main() {
     // Create instances
-    const mainContainer = new MainContainer(`${_mainClassName_}`, "History");
-    const backContainer = new BackContainer(`${_mainClassName_}-view`);
-    const nextContainer = new NextContainer(`${_mainClassName_}-view`);
+    const mainContainer = new MainContainer(`${_mainName_}`, "History");
+    const backContainer = new BackContainer(`${_mainName_}-view`);
+    const nextContainer = new NextContainer(`${_mainName_}-view`);
     const bookmarkContainer = new BookmarkContainer(
-      `${_mainClassName_}-view`,
+      `${_mainName_}-view`,
       "icon star"
     );
     const deleteHistoryContainer = new DeleteHistoryContainer(
-      `${_mainClassName_}-delete-button`,
-      `${_mainClassName_}-delete-view`
+      `${_mainName_}-delete-button`,
+      `${_mainName_}-delete-view`
     );
-    const fixedWrapper = new FixedWrapper(`${_mainClassName_}-fixed`);
+    const fixedWrapper = new FixedWrapper(`${_mainName_}-fixed`);
 
     // Append elements to HTML
     const fancyInputs = document.querySelector(".fancy-inputs-section");
