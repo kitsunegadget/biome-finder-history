@@ -1,9 +1,9 @@
-# Random Seed History on Biome Finder
+# Random Seed History on Seed Map
 
-[Biome Finder](https://www.chunkbase.com/apps/biome-finder) のランダムシードボタンに、履歴ボタンを追加する拡張機能です。
+[Seed Map](https://www.chunkbase.com/apps/seed-map) のランダムシードボタンに、履歴ボタンを追加する拡張機能です。
 おまけでブックマーク機能も付いています。
 
-- [Seed Map](https://www.chunkbase.com/apps/seed-map) や他の Chunk Base のアプリで利用可能です。すべての場所で履歴とブックマークを共有します。
+- 他の Chunk Base のアプリでも利用可能です。すべての場所で履歴とブックマークを共有します。
 
 ---
 
