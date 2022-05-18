@@ -1,6 +1,6 @@
 {
   "name": "biome-finder-seed-history",
-  "version": "2.1.2",
+  "version": "2.1.4",
   "description": "Add history to random seeds created within Biome Finder.",
   "scripts": {
     "watch:js": "npm run copy & tsc --watch --sourceMap",
