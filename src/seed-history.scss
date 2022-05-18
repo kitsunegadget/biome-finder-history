@@ -10,7 +10,7 @@ $color-hover-blue: #1e90ff;
   background-image: linear-gradient(#f56969, #d94d4d);
 }
 
-#add-history {
+#seed-history {
   display: inline-block;
   position: relative;
 
@@ -18,7 +18,7 @@ $color-hover-blue: #1e90ff;
     margin-left: 16px;
   }
 
-  .add-history-view {
+  .seed-history-view {
     display: none;
     position: absolute;
     z-index: 2022;
@@ -52,7 +52,7 @@ $color-hover-blue: #1e90ff;
     }
   }
 
-  .add-history-delete {
+  .seed-history-delete {
     &-button {
       width: 25px;
       height: 25px;
@@ -105,7 +105,7 @@ $color-hover-blue: #1e90ff;
   }
 }
 
-#add-history-fixed {
+#seed-history-fixed {
   display: none;
   position: fixed;
   width: 100vw;
